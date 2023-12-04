@@ -4,7 +4,7 @@ import datetime as dt
 
 from utils import checking_directory
 from prettytable import PrettyTable
-from constants import DATETIME_FORMAT, BASE_DIR
+from constants import DATETIME_FORMAT, BASE_DIR, RESULTS_DIR
 
 
 def control_output(results, cli_args):
@@ -35,8 +35,8 @@ def pretty_output(results):
 
 def file_output(results, cli_args):
     """Сохранения в фаил [.csv]."""
-    results_dir = BASE_DIR / 'results'
-    if checking_directory(results_dir):
+    results_dir = BASE_DIR / RESULTS_DIR
+    if checking_directory(results_dir) is None:
         parser_mode = cli_args.mode
         now = dt.datetime.now()
         now_formatted = now.strftime(DATETIME_FORMAT)

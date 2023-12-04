@@ -35,4 +35,3 @@ def checking_directory(dir):
         except OSError:
             text_error = f'Не получилось создать каталог: {dir}'
             raise ErrorCreatingDirectoryException(text_error)
-    return True

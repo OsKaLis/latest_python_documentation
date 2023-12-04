@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from constants import (
     BASE_DIR,
+    DOWNLOADS_DIR,
     MAIN_DOC_URL,
     PEP_URL,
     EXPECTED_STATUS,
@@ -19,7 +20,6 @@ from outputs import control_output
 from configs import configure_argument_parser, configure_logging
 from utils import get_response, find_tag, checking_directory
 from exceptions import ParserFindTagException
-from enums import table_headers as th
 
 
 def get_array_data(session, url, throw_exception=True):
@@ -32,8 +32,7 @@ def get_array_data(session, url, throw_exception=True):
             raise ParserFindTagException(
                 f'Не смог получить данных со страници [{url}].'
             )
-        else:
-            return False
+        return
     return BeautifulSoup(response.text, features=PARSER_PARAMETER)
 
 
@@ -46,13 +45,13 @@ def whats_new(session) -> list:
     sections_by_python = div_with_ul.find_all(
         'li', attrs={'class': 'toctree-l1'}
     )
-    results = th.headers.whats_new.value
+    results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
     for section in tqdm(sections_by_python):
         version_a_tag = section.find('a')
         href = version_a_tag['href']
         version_link = urljoin(whats_new_url, href)
         soup = get_array_data(session, version_link, throw_exception=False)
-        if not soup:
+        if soup is None:
             continue
         h1 = find_tag(soup, 'h1')
         dl = soup.find('dl')
@@ -70,7 +69,7 @@ def latest_versions(session) -> list:
     if 'All versions' not in ul.text:
         raise ParserFindTagException('Ничего не нашлось url:[-].')
     a_tags = ul.find_all('a')
-    results = th.headers.latest_versions.value
+    results = [('Ссылка на документацию', 'Версия', 'Статус')]
     for a_tag in a_tags:
         link = a_tag['href']
         text_match = re.search(PATTERN_LATEST_VERSIONS, a_tag.text)
@@ -92,8 +91,8 @@ def download(session) -> None:
     pdf_a4_link = pdf_a4_tag['href']
     archive_url = urljoin(downloads_url, pdf_a4_link)
     filename = archive_url.split('/')[-1]
-    downloads_dir = BASE_DIR / 'downloads'
-    if checking_directory(downloads_dir):
+    downloads_dir = BASE_DIR / DOWNLOADS_DIR
+    if checking_directory(downloads_dir) is None:
         archive_path = downloads_dir / filename
         response = session.get(archive_url)
         with open(archive_path, 'wb') as file:
@@ -121,7 +120,7 @@ def parse_status_type_from_page(url=None) -> dict:
 def conclusion_list(number_statuses) -> list:
     """Подготовка для вывод списка PEP."""
     sum = 0
-    results = th.headers.conclusion_list.value
+    results = [('Статус', 'Количество')]
     number_statuses = sorted(number_statuses.items())
     for k, v in number_statuses:
         sum += v

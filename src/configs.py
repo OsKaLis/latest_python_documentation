@@ -4,7 +4,7 @@ import argparse
 from utils import checking_directory
 from constants import LOG_DIR, LOG_FILE
 from logging.handlers import RotatingFileHandler
-from enums import how_withdraw as hw
+from enums import output_operation
 
 LOG_FORMAT = '"%(asctime)s - [%(levelname)s] - %(message)s"'
 DT_FORMAT = '%d.%m.%Y %H:%M:%S'
@@ -26,14 +26,16 @@ def configure_argument_parser(available_modes):
     parser.add_argument(
         '-o',
         '--output',
-        choices=tuple([parameters.value for parameters in hw.parameters]),
+        choices=tuple(
+            [parameters.value for parameters in output_operation.Parameters]
+        ),
         help='Дополнительные способы вывода данных'
     )
     return parser
 
 
 def configure_logging():
-    if checking_directory(LOG_DIR):
+    if checking_directory(LOG_DIR) is None:
         rotating_handler = RotatingFileHandler(
             LOG_FILE, maxBytes=10 ** 6, backupCount=5
         )
