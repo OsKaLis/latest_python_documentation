@@ -1,4 +1,3 @@
-# main.py
 import re
 import logging
 from urllib.parse import urljoin
@@ -12,36 +11,49 @@ from constants import (
     MAIN_DOC_URL,
     PEP_URL,
     EXPECTED_STATUS,
+    PATTERN_LATEST_VERSIONS,
+    PARSER_PARAMETER,
+    PATTERN_DOWNLOAD,
 )
 from outputs import control_output
 from configs import configure_argument_parser, configure_logging
-from utils import get_response, find_tag
+from utils import get_response, find_tag, checking_directory
+from exceptions import ParserFindTagException
+from enums import table_headers as th
+
+
+def get_array_data(session, url, throw_exception=True):
+    """Собираю данные страници."""
+    response = session.get(url)
+    response.encoding = 'utf-8'
+    response = get_response(session, url)
+    if response is None:
+        if throw_exception:
+            raise ParserFindTagException(
+                f'Не смог получить данных со страници [{url}].'
+            )
+        else:
+            return False
+    return BeautifulSoup(response.text, features=PARSER_PARAMETER)
 
 
 def whats_new(session) -> list:
+    """Собирать о нововведениях в Python."""
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
-    response = session.get(whats_new_url)
-    response.encoding = 'utf-8'
-    response = get_response(session, whats_new_url)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = get_array_data(session, whats_new_url)
     main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
     div_with_ul = find_tag(main_div, 'div', attrs={'class': 'toctree-wrapper'})
     sections_by_python = div_with_ul.find_all(
         'li', attrs={'class': 'toctree-l1'}
     )
-    results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
+    results = th.headers.whats_new.value
     for section in tqdm(sections_by_python):
         version_a_tag = section.find('a')
         href = version_a_tag['href']
         version_link = urljoin(whats_new_url, href)
-        response = session.get(version_link)
-        response.encoding = 'utf-8'
-        response = get_response(session, version_link)
-        if response is None:
+        soup = get_array_data(session, version_link, throw_exception=False)
+        if not soup:
             continue
-        soup = BeautifulSoup(response.text, features='lxml')
         h1 = find_tag(soup, 'h1')
         dl = soup.find('dl')
         dl_text = dl.text.replace('\n', ' ')
@@ -50,25 +62,18 @@ def whats_new(session) -> list:
 
 
 def latest_versions(session) -> list:
-    response = session.get(MAIN_DOC_URL)
-    response.encoding = 'utf-8'
-    response = get_response(session, MAIN_DOC_URL)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    """Извлекаем изстраницы номер версии и статус Python."""
+    soup = get_array_data(session, MAIN_DOC_URL)
     sidebar = find_tag(soup, 'div', attrs={'class': 'sphinxsidebarwrapper'})
     ul_tags = sidebar.find_all('ul')
-    for ul in ul_tags:
-        if 'All versions' in ul.text:
-            a_tags = ul.find_all('a')
-            break
-        else:
-            raise Exception('Ничего не нашлось')
-    results = [('Ссылка на документацию', 'Версия', 'Статус')]
-    pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
+    ul = ul_tags[0]
+    if 'All versions' not in ul.text:
+        raise ParserFindTagException('Ничего не нашлось url:[-].')
+    a_tags = ul.find_all('a')
+    results = th.headers.latest_versions.value
     for a_tag in a_tags:
         link = a_tag['href']
-        text_match = re.search(pattern, a_tag.text)
+        text_match = re.search(PATTERN_LATEST_VERSIONS, a_tag.text)
         if text_match is not None:
             version, status = text_match.groups()
         else:
@@ -77,37 +82,32 @@ def latest_versions(session) -> list:
     return results
 
 
-def download(session):
+def download(session) -> None:
+    """Скачать свежию документацию по Python."""
     downloads_url = urljoin(MAIN_DOC_URL, 'download.html')
-    response = session.get(downloads_url)
-    response.encoding = 'utf-8'
-    response = get_response(session, downloads_url)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = get_array_data(session, downloads_url)
     main_tag = find_tag(soup, 'div', attrs={'role': 'main'})
     table_tag = find_tag(main_tag, 'table', attrs={'class': 'docutils'})
-    pdf_a4_tag = table_tag.find('a', {'href': re.compile(r'.+pdf-a4\.zip$')})
+    pdf_a4_tag = table_tag.find('a', {'href': re.compile(PATTERN_DOWNLOAD)})
     pdf_a4_link = pdf_a4_tag['href']
     archive_url = urljoin(downloads_url, pdf_a4_link)
     filename = archive_url.split('/')[-1]
     downloads_dir = BASE_DIR / 'downloads'
-    downloads_dir.mkdir(exist_ok=True)
-    archive_path = downloads_dir / filename
-    response = session.get(archive_url)
-    with open(archive_path, 'wb') as file:
-        file.write(response.content)
-    logging.info(f'Архив был загружен и сохранён: {archive_path}')
+    if checking_directory(downloads_dir):
+        archive_path = downloads_dir / filename
+        response = session.get(archive_url)
+        with open(archive_path, 'wb') as file:
+            file.write(response.content)
+        logging.info(f'Архив был загружен и сохранён: {archive_path}')
 
 
-# pep
-def dok_ST(url=None) -> dict:
+def parse_status_type_from_page(url=None) -> dict:
     """Парсим статус и тайп со страницы PEP."""
     type_status = {}
     session = requests_cache.CachedSession()
     response = session.get(PEP_URL + url)
     response.encoding = 'utf-8'
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = BeautifulSoup(response.text, features=PARSER_PARAMETER)
     teg_dl = soup.find('dl')
     teg_dt = teg_dl.find_all('dt')
     teg_dd = teg_dl.find_all('dd')
@@ -121,7 +121,7 @@ def dok_ST(url=None) -> dict:
 def conclusion_list(number_statuses) -> list:
     """Подготовка для вывод списка PEP."""
     sum = 0
-    results = [('Статус', 'Количество')]
+    results = th.headers.conclusion_list.value
     number_statuses = sorted(number_statuses.items())
     for k, v in number_statuses:
         sum += v
@@ -133,13 +133,16 @@ def conclusion_list(number_statuses) -> list:
     return results
 
 
-def list_inconsistencies(incorrect_status):
+def list_inconsistencies(incorrect_statuses):
     """Показать список не соотвтствующих статусов PEP."""
     logging.info('Несовпадающие статусы:')
-    for x in incorrect_status:
-        logging.info((PEP_URL + x['url']))
-        logging.info(('Статус в карточке:', x['status']))
-        logging.info(('Ожидаемые статусы:', f"['{x['ls']}', '{x['ps']}']"))
+    for incorrect_status in incorrect_statuses:
+        logging.info((PEP_URL + incorrect_status['url']))
+        logging.info(('Статус в карточке:', incorrect_status['status']))
+        logging.info(
+            ('Ожидаемые статусы:',
+             f"['{incorrect_status['ls']}', '{incorrect_status['ps']}']")
+        )
 
 
 def collecting_list(teg_tbody):
@@ -156,7 +159,7 @@ def collecting_list(teg_tbody):
                 status_general = ['', '']
             a_href = v.find('a')
             if a_href is not None:
-                status = dok_ST(a_href['href'])
+                status = parse_status_type_from_page(a_href['href'])
                 if status_general[-1] != status:
                     incorrect_status.append({
                         'url': a_href['href'],
@@ -176,12 +179,7 @@ def collecting_list(teg_tbody):
 
 def pep(session) -> list:
     """спарсить и подсчитать количество каждого статуса PEP."""
-    response = session.get(PEP_URL)
-    response.encoding = 'utf-8'
-    response = get_response(session, PEP_URL)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = get_array_data(session, PEP_URL)
     teg_tbody = soup.find_all('tbody')
     number_statuses, incorrect_status = collecting_list(teg_tbody)
     if len(incorrect_status) > 0:
@@ -189,7 +187,7 @@ def pep(session) -> list:
     return conclusion_list(number_statuses)
 
 
-MODE_TO_FUNCTION = {
+MODE_TO_FUNCTION: dict = {
     'whats-new': whats_new,
     'latest-versions': latest_versions,
     'download': download,

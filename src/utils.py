@@ -1,7 +1,7 @@
-# utils.py
+import os
 import logging
 from requests import RequestException
-from exceptions import ParserFindTagException
+from exceptions import ParserFindTagException, ErrorCreatingDirectoryException
 
 
 def get_response(session, url):
@@ -25,3 +25,14 @@ def find_tag(soup, tag, attrs=None):
         logging.error(error_msg, stack_info=True)
         raise ParserFindTagException(error_msg)
     return searched_tag
+
+
+def checking_directory(dir):
+    """Проверка каталога."""
+    if not os.path.exists(dir):
+        try:
+            os.makedirs(dir)
+        except OSError:
+            text_error = f'Не получилось создать каталог: {dir}'
+            raise ErrorCreatingDirectoryException(text_error)
+    return True
