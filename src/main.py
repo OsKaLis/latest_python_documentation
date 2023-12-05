@@ -92,12 +92,12 @@ def download(session) -> None:
     archive_url = urljoin(downloads_url, pdf_a4_link)
     filename = archive_url.split('/')[-1]
     downloads_dir = BASE_DIR / DOWNLOADS_DIR
-    if checking_directory(downloads_dir) is None:
-        archive_path = downloads_dir / filename
-        response = session.get(archive_url)
-        with open(archive_path, 'wb') as file:
-            file.write(response.content)
-        logging.info(f'Архив был загружен и сохранён: {archive_path}')
+    checking_directory(downloads_dir)
+    archive_path = downloads_dir / filename
+    response = session.get(archive_url)
+    with open(archive_path, 'wb') as file:
+        file.write(response.content)
+    logging.info(f'Архив был загружен и сохранён: {archive_path}')
 
 
 def parse_status_type_from_page(url=None) -> dict:

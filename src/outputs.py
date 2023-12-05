@@ -36,13 +36,13 @@ def pretty_output(results):
 def file_output(results, cli_args):
     """Сохранения в фаил [.csv]."""
     results_dir = BASE_DIR / RESULTS_DIR
-    if checking_directory(results_dir) is None:
-        parser_mode = cli_args.mode
-        now = dt.datetime.now()
-        now_formatted = now.strftime(DATETIME_FORMAT)
-        file_name = f'{parser_mode}_{now_formatted}.csv'
-        file_path = results_dir / file_name
-        with open(file_path, 'w', encoding='utf-8') as f:
-            writer = csv.writer(f, dialect='unix')
-            writer.writerows(results)
-        logging.info(f'Файл с результатами был сохранён: {file_path}')
+    checking_directory(results_dir)
+    parser_mode = cli_args.mode
+    now = dt.datetime.now()
+    now_formatted = now.strftime(DATETIME_FORMAT)
+    file_name = f'{parser_mode}_{now_formatted}.csv'
+    file_path = results_dir / file_name
+    with open(file_path, 'w', encoding='utf-8') as f:
+        writer = csv.writer(f, dialect='unix')
+        writer.writerows(results)
+    logging.info(f'Файл с результатами был сохранён: {file_path}')
