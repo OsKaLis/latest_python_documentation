@@ -26,7 +26,7 @@
 * python main.py whats-new
 
 ### Вывод информации с помощью таблицы:
-* python main.py latest-versions --pretty
+* python main.py latest-versions --output pretty
 
 ### Сохранение информации в ваил "csv" в папке "results":
 * python main.py pep -o file
